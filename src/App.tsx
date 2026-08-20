@@ -17,6 +17,7 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [statusText, setStatusText] = useState('');
   const [progress, setProgress] = useState(0);
+  const [logs, setLogs] = useState<string[]>([]);
   const [transcript, setTranscript] = useState('');
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [summary, setSummary] = useState('');
@@ -74,7 +75,12 @@ export default function App() {
   const run = useCallback(async () => {
     if (!file) return;
     setPhase('processing');
-    setStatusText('准备中…');
+    setLogs([]);
+    const log = (s: string) => {
+      setStatusText(s);
+      setLogs((prev) => [...prev, s]);
+    };
+    log('准备中…');
     setProgress(0.02);
     try {
       const tasks: Promise<void>[] = [];
@@ -84,12 +90,13 @@ export default function App() {
       tasks.push(
         (async () => {
           const samples = await decodeToMono16k(file);
-          setStatusText('语音识别中…');
-          const r = await transcribeWithWhisper(samples, setStatusText);
+          log('音频解码完成，开始语音识别…');
+          const r = await transcribeWithWhisper(samples, log);
           text = r.text;
           segs = r.segments;
           setTranscript(r.text);
           setSegments(r.segments);
+          log(`识别完成，文字稿 ${r.text.length} 字`);
         })()
       );
 
@@ -108,9 +115,9 @@ export default function App() {
       await Promise.all(tasks);
       setProgress(0.85);
 
-      setStatusText('总结中…');
+      log('总结中…');
       const sum = useAi
-        ? await aiSummarize(text || transcript, setStatusText).catch(() => extractiveSummary(text || transcript))
+        ? await aiSummarize(text || transcript, log).catch(() => extractiveSummary(text || transcript))
         : extractiveSummary(text || transcript);
       setSummary(sum);
       setProgress(1);
@@ -272,6 +279,16 @@ export default function App() {
             <div className="progress">
               <div className="bar" style={{ width: `${Math.round(progress * 100)}%` }} />
               <span>{statusText}</span>
+            </div>
+          )}
+          {(phase === 'processing' || phase === 'error') && logs.length > 0 && (
+            <div className="logs">
+              <div className="logs-title">处理日志（如失败请把这里的内容发我）</div>
+              <ul>
+                {logs.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
             </div>
           )}
           {phase === 'error' && <div className="error">{statusText}</div>}
