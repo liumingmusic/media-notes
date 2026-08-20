@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/vite-env.d.ts","./src/lib/audio.ts","./src/lib/keyframes.ts","./src/lib/markdown.ts","./src/lib/storage.ts","./src/lib/summarizer.ts","./src/lib/transcription.ts"],"version":"5.9.3"}
