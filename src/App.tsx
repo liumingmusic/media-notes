@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Keyframe, MediaKind, NoteRecord, TranscriptSegment } from './types';
 import { decodeToMono16k } from './lib/audio';
 import { transcribeWithWhisper } from './lib/transcription';
-import { aiSummarize, extractiveSummary } from './lib/summarizer';
+import { extractiveSummary } from './lib/summarizer';
 import { extractKeyframes } from './lib/keyframes';
 import { deleteNote, listNotes, saveNote } from './lib/storage';
 import { downloadMarkdown, formatTime, toMarkdown } from './lib/markdown';
@@ -22,7 +22,6 @@ export default function App() {
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [summary, setSummary] = useState('');
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [useAi, setUseAi] = useState(false);
   const [notes, setNotes] = useState<NoteRecord[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const previewRef = useRef<HTMLMediaElement | null>(null);
@@ -116,9 +115,7 @@ export default function App() {
       setProgress(0.85);
 
       log('总结中…');
-      const sum = useAi
-        ? await aiSummarize(text || transcript, log).catch(() => extractiveSummary(text || transcript))
-        : extractiveSummary(text || transcript);
+      const sum = extractiveSummary(text || transcript);
       setSummary(sum);
       setProgress(1);
       setPhase('ready');
@@ -142,17 +139,15 @@ export default function App() {
       setStatusText(`出错了：${(err as Error).message || String(err)}`);
       setPhase('error');
     }
-  }, [file, mediaKind, duration, useAi, transcript, refreshNotes]);
+  }, [file, mediaKind, duration, transcript, refreshNotes]);
 
   const reSummarize = useCallback(async () => {
     if (!transcript) return;
     setStatusText('重新总结中…');
-    const sum = useAi
-      ? await aiSummarize(transcript).catch(() => extractiveSummary(transcript))
-      : extractiveSummary(transcript);
+    const sum = extractiveSummary(transcript);
     setSummary(sum);
     setStatusText('');
-  }, [transcript, useAi]);
+  }, [transcript]);
 
   const loadNote = useCallback((n: NoteRecord) => {
     setActiveId(n.id);
@@ -269,10 +264,7 @@ export default function App() {
             <button className="primary" disabled={!file || phase === 'processing'} onClick={run}>
               {phase === 'processing' ? '处理中…' : '开始提取'}
             </button>
-            <label className="ai-toggle">
-              <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} />
-              使用本地 AI 深度总结（首次需下载模型）
-            </label>
+            <span className="ai-note">转写与摘要均在本地完成，文件不出本机</span>
           </div>
 
           {phase === 'processing' && (

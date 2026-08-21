@@ -10,3 +10,7 @@ dist-ssr
 vite.config.js
 vite.config.d.ts
 vite.config.js.timestamp-*.mjs
+
+# vendored assets（由 scripts/fetch-assets.mjs 生成，不进 git）
+public/models/
+public/wasm/

@@ -1,4 +1,4 @@
-// 总结能力：内置"抽取式摘要"即时可用；可选"本地 AI 深度总结"（懒加载小模型）
+// 总结能力：离线"抽取式摘要"（基于词频/位置打分提取关键句），纯前端、无需下载模型
 
 const STOP = new Set([
   '的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一个', '上', '也', '很',
@@ -35,26 +35,3 @@ export function extractiveSummary(text: string, maxSentences = 12): string {
     .join('');
 }
 
-let genModel: ((prompt: string, opts: unknown) => Promise<unknown>) | null = null;
-
-export async function aiSummarize(text: string, onStatus?: (s: string) => void): Promise<string> {
-  const { pipeline } = await import('@huggingface/transformers');
-  if (!genModel) {
-    onStatus?.('加载本地总结模型…');
-    genModel = (await pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {
-      progress_callback: (p: { status: string; file?: string; progress?: number }) => {
-        if (p.status === 'progress' && p.file && p.progress != null) {
-          onStatus?.(`下载总结模型 ${Math.round(p.progress)}%`);
-        }
-      },
-    })) as unknown as (prompt: string, opts: unknown) => Promise<unknown>;
-  }
-  onStatus?.('总结中…');
-  const prompt = `请用简洁的中文要点总结以下内容的关键信息，分条列出：\n\n${text.slice(0, 6000)}`;
-  const out = (await genModel(prompt, { max_new_tokens: 400, do_sample: false })) as Array<{
-    generated_text: string;
-  }>;
-  const gen = out?.[0]?.generated_text ?? '';
-  const idx = gen.lastIndexOf(prompt);
-  return (idx >= 0 ? gen.slice(idx + prompt.length) : gen).trim();
-}
