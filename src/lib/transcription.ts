@@ -1,21 +1,27 @@
-import { env, pipeline } from '@huggingface/transformers';
+import { env, pipeline } from '@xenova/transformers';
 import type { TranscriptSegment } from '../types';
 
 // 关键：模型与 WASM 全部同源打包进站点（public/ → dist/ → GitHub Pages），
 // 浏览器零外部网络请求。这样彻底绕开两个问题：
 //   1) huggingface.co 在国内被墙 / 镜像把请求重定向回官方域 → 模型永远下不下来；
 //   2) onnxruntime-web 的 dev 预发布版不在 jsdelivr 上 → WASM 也会 404。
-// 资源由 scripts/fetch-assets.mjs 在构建前准备（模型从 HF 官方源下载，WASM 从 node_modules 拷贝）。
+// 资源由 scripts/fetch-assets.mjs 在构建前准备（模型从 HF 镜像下载，WASM 从 node_modules 拷贝）。
+//
+// 版本锁定：@xenova/transformers@2.17.2 自带 onnxruntime-web@1.14.0（已通过 overrides 固定）。
+// 该版本远在 1.20 之前，不含会导致 whisper 量化模型报
+// "Missing required scale ... weight_merged_0_scale" 的 MatMulNBits 优化器改动；
+// 且其 WASM 为单线程版，不需要 SharedArrayBuffer，GitHub Pages（无 COOP/COEP）也能正常加载。
 env.allowLocalModels = true;
 env.allowRemoteModels = false; // 强制本地，避免在中国网络下白等远程超时
 env.localModelPath = import.meta.env.BASE_URL + 'models/';
 try {
   // WASM 同源加载（BASE_URL 在 dev 为 '/'，在 GitHub Pages 子路径下为 '/media-notes/'）
-  (env.backends as { onnx?: { wasm?: { wasmPaths?: string } } }).onnx = {
+  (env.backends as { onnx?: { wasm?: { wasmPaths?: string; numThreads?: number } } }).onnx = {
     ...(env.backends as { onnx?: object }).onnx,
     wasm: {
       ...((env.backends as { onnx?: { wasm?: object } }).onnx?.wasm ?? {}),
       wasmPaths: import.meta.env.BASE_URL + 'wasm/',
+      numThreads: 1, // 单线程，彻底规避 SharedArrayBuffer / COOP-COEP 依赖
     },
   };
 } catch {
@@ -36,7 +42,7 @@ let loadPromise: Promise<AnyPipeline> | null = null;
 export async function loadWhisper(onStatus?: (s: string) => void): Promise<AnyPipeline> {
   if (transcriber) return transcriber;
   if (loadPromise) return loadPromise;
-  onStatus?.(`正在从国内镜像加载本地语音模型（${MODEL_ID}）…`);
+  onStatus?.(`正在加载本地语音模型（${MODEL_ID}）…`);
   loadPromise = (async () => {
     const model = (await pipeline('automatic-speech-recognition', MODEL_ID, {
       progress_callback: (p: { status: string; file?: string; progress?: number; loaded?: number; total?: number }) => {

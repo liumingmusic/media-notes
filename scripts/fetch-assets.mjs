@@ -19,7 +19,10 @@ const PUBLIC = join(ROOT, 'public');
 const HF_BASE = 'https://hf-mirror.com/Xenova/whisper-base/resolve/main/';
 const MODEL_DIR = join(PUBLIC, 'models', 'Xenova', 'whisper-base');
 
-// whisper-base 需要的文件（量化版，约 125MB）
+// whisper-base 需要的文件（量化版）。重要：@xenova/transformers@2.17.2 使用的是
+// 合并解码器 decoder_model_merged_quantized.onnx（而非旧式的 decoder_model_quantized.onnx
+// 与 decoder_with_past_model_quantized.onnx），后者在该版本下不会被加载，缺失 merged 会
+// 导致 vite 回退返回 HTML 而 protobuf 解析失败，并报 "Unsupported model type: whisper"。
 const MODEL_FILES = [
   'config.json',
   'generation_config.json',
@@ -31,19 +34,14 @@ const MODEL_FILES = [
   'merges.txt',
   'added_tokens.json',
   'onnx/encoder_model_quantized.onnx',
-  'onnx/decoder_model_quantized.onnx',
-  'onnx/decoder_with_past_model_quantized.onnx',
+  'onnx/decoder_model_merged_quantized.onnx',
 ];
 
 // ONNX Runtime Web 的 WASM（从 node_modules 拷贝，避免 dev 版不在 jsdelivr 上导致 404）
+// 不同版本文件名不同（单线程/多线程/asyncify），直接拷贝 dist 下全部 .wasm 与 .mjs，避免漏文件。
 const ORT_DIST = join(ROOT, 'node_modules', 'onnxruntime-web', 'dist');
 const WASM_DIR = join(PUBLIC, 'wasm');
-const WASM_FILES = [
-  'ort-wasm-simd-threaded.asyncify.mjs',
-  'ort-wasm-simd-threaded.asyncify.wasm',
-  'ort-wasm-simd-threaded.mjs',
-  'ort-wasm-simd-threaded.wasm',
-];
+const WASM_EXTS = ['.wasm', '.mjs'];
 
 async function fileExists(p) {
   try {
@@ -52,6 +50,12 @@ async function fileExists(p) {
   } catch {
     return false;
   }
+}
+
+import { readdir } from 'node:fs/promises';
+async function listWasmFiles() {
+  const entries = await readdir(ORT_DIST);
+  return entries.filter((f) => WASM_EXTS.some((ext) => f.endsWith(ext)));
 }
 
 async function downloadFile(url, dest) {
@@ -81,7 +85,8 @@ async function downloadFile(url, dest) {
 
 async function copyWasm() {
   await mkdir(WASM_DIR, { recursive: true });
-  for (const f of WASM_FILES) {
+  const files = await listWasmFiles();
+  for (const f of files) {
     const src = join(ORT_DIST, f);
     const dest = join(WASM_DIR, f);
     if (await fileExists(dest)) {
