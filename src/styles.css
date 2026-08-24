@@ -148,8 +148,6 @@ button.ghost:hover {
   padding: 12px 14px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12.5px;
-  max-height: 220px;
-  overflow: auto;
 }
 .logs-title {
   color: #93c5fd;
