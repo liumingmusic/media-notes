@@ -25,6 +25,9 @@ body {
   max-width: 1080px;
   margin: 0 auto;
   padding: 24px 20px 64px;
+  /* 阻止任何意外内容把页面撑出横向滚动条（页面"变形"）。
+     关键帧时间轴自身的横向滚动由 .timeline{overflow-x:auto} 独立承载，不受影响。 */
+  overflow-x: hidden;
 }
 
 .app-header h1 {
@@ -41,6 +44,12 @@ body {
   display: grid;
   grid-template-columns: 1fr 280px;
   gap: 20px;
+}
+/* 关键：网格子项默认 min-width:auto，会按内容最小宽度撑开，
+   导致 .main 内长文本/日志把整列撑宽、出现横向滚动条（页面"变形"）。
+   显式设为 0，让 1fr 列能正常收缩。 */
+.layout > * {
+  min-width: 0;
 }
 @media (max-width: 820px) {
   .layout {
@@ -198,6 +207,53 @@ button.ghost:hover {
   font: inherit;
   font-size: 14px;
   resize: vertical;
+}
+
+/* 分段文字稿：按时间轴逐段展示，停顿（段落间隔）可见、易读 */
+.seg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.seg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.seg-time {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: #eaf5f1;
+  border: 1px solid #cfe7df;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.seg-time:hover {
+  background: #d8ede6;
+}
+.seg-time:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.seg-text {
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+.full-edit-toggle {
+  margin-top: 14px;
+}
+.full-edit {
+  margin-top: 12px;
 }
 .export-row {
   display: flex;

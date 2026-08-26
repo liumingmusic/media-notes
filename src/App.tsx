@@ -24,6 +24,7 @@ export default function App() {
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [notes, setNotes] = useState<NoteRecord[]>([]);
   const [activeId, setActiveId] = useState<string>('');
+  const [showFull, setShowFull] = useState(false);
   const previewRef = useRef<HTMLMediaElement | null>(null);
 
   const refreshNotes = useCallback(async () => {
@@ -47,6 +48,7 @@ export default function App() {
     setKeyframes([]);
     setPhase('idle');
     setActiveId('');
+    setShowFull(false);
     setProgress(0);
     // 读取时长
     if (kind === 'video') {
@@ -159,6 +161,7 @@ export default function App() {
     setSegments(n.segments);
     setSummary(n.summary);
     setKeyframes(n.keyframes);
+    setShowFull(false);
     setPhase('ready');
   }, []);
 
@@ -311,12 +314,27 @@ export default function App() {
               )}
 
               <section className="card">
-                <h2>文字稿（可编辑）</h2>
-                <textarea
-                  className="transcript"
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                />
+                <h2>分段文字稿（按时间停顿切分）</h2>
+                {segments.length > 0 ? (
+                  <div className="seg-list">
+                    {segments.map((s, i) => (
+                      <div className="seg" key={i}>
+                        <button
+                          className="seg-time"
+                          disabled={!mediaUrl}
+                          onClick={() => seekTo(s.start)}
+                          title={mediaUrl ? `跳转到 ${formatTime(s.start)}` : '当前无可播放的媒体'}
+                        >
+                          {formatTime(s.start)}
+                        </button>
+                        <div className="seg-text">{s.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="summary">{transcript || '（无）'}</div>
+                )}
+
                 <div className="export-row">
                   <button className="ghost" onClick={copyMd}>
                     复制 Markdown
@@ -325,6 +343,21 @@ export default function App() {
                     下载 .md
                   </button>
                 </div>
+
+                <div className="full-edit-toggle">
+                  <button className="ghost" onClick={() => setShowFull((v) => !v)}>
+                    {showFull ? '收起可编辑全文' : '展开可编辑全文'}
+                  </button>
+                </div>
+                {showFull && (
+                  <div className="full-edit">
+                    <textarea
+                      className="transcript"
+                      value={transcript}
+                      onChange={(e) => setTranscript(e.target.value)}
+                    />
+                  </div>
+                )}
               </section>
             </div>
           )}

@@ -29,7 +29,13 @@ export function toMarkdown(rec: NoteRecord): string {
   }
   lines.push('## 文字稿');
   lines.push('');
-  lines.push(rec.transcript || '（无）');
+  if (rec.segments.length) {
+    for (const s of rec.segments) {
+      lines.push(`- [${formatTime(s.start)}] ${s.text}`);
+    }
+  } else {
+    lines.push(rec.transcript || '（无）');
+  }
   lines.push('');
   return lines.join('\n');
 }

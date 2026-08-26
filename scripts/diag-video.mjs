@@ -89,5 +89,74 @@ if (result?.type === 'error') {
 }
 if (consoleErrors.length) { console.log('=== console errors ==='); consoleErrors.slice(0, 8).forEach((e) => console.log(' -', e)); }
 
+// 横向滚动检测：测量文档宽度并定位溢出元素（修复"页面变形/横向滚动条"用）
+const scrollInfo = await page.evaluate(() => {
+  const de = document.documentElement;
+  const cw = de.clientWidth;
+  const sw = de.scrollWidth;
+  const offenders = [];
+  for (const el of document.querySelectorAll('*')) {
+    const r = el.getBoundingClientRect();
+    if (r.right > cw + 1 && r.width > 0) {
+      const cls = typeof el.className === 'string' ? el.className : '';
+      offenders.push({ tag: el.tagName.toLowerCase(), cls, right: Math.round(r.right), width: Math.round(r.width) });
+    }
+  }
+  const uniq = [];
+  const seen = new Set();
+  for (const o of offenders.sort((a, b) => b.right - a.right)) {
+    const key = o.tag + '.' + o.cls;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniq.push(o);
+    if (uniq.length >= 8) break;
+  }
+  // 关键容器实际计算宽度，定位"谁撑宽了页面"
+  const widths = {};
+  for (const s of ['.app', '.layout', '.main', '.side', '.results', '.card', '.timeline', '.seg-list']) {
+    const el = document.querySelector(s);
+    if (!el) continue;
+    const cs = getComputedStyle(el);
+    widths[s] = { clientWidth: el.clientWidth, scrollWidth: el.scrollWidth, overflowX: cs.overflowX, minWidth: cs.minWidth };
+  }
+  // 找出最宽 / 最靠右的元素及其父链，定位真正撑宽页面的元凶
+  let maxRight = null;
+  let maxWidth = null;
+  const chain = (el) => {
+    const parts = [];
+    let n = el;
+    for (let i = 0; i < 4 && n; i++) {
+      const c = typeof n.className === 'string' ? n.className : '';
+      parts.push(n.tagName.toLowerCase() + (c ? '.' + c.split(' ')[0] : ''));
+      n = n.parentElement;
+    }
+    return parts.join(' > ');
+  };
+  for (const el of document.querySelectorAll('*')) {
+    const r = el.getBoundingClientRect();
+    if (!maxRight || r.right > maxRight.r.right) maxRight = { r, info: { tag: el.tagName.toLowerCase(), cls: typeof el.className === 'string' ? el.className : '', right: Math.round(r.right), w: Math.round(r.width), chain: chain(el) } };
+    if (!maxWidth || r.width > maxWidth.r.width) maxWidth = { r, info: { tag: el.tagName.toLowerCase(), cls: typeof el.className === 'string' ? el.className : '', right: Math.round(r.right), w: Math.round(r.width), chain: chain(el) } };
+  }
+  // 分段文字稿渲染校验
+  const segs = document.querySelectorAll('.seg');
+  const firstSeg = segs.length ? {
+    time: document.querySelector('.seg-time')?.textContent || '',
+    text: (document.querySelector('.seg-text')?.textContent || '').slice(0, 40),
+  } : null;
+  return { clientWidth: cw, scrollWidth: sw, hasHScroll: sw > cw + 1, offenders: uniq, widths, maxRight: maxRight?.info, maxWidth: maxWidth?.info, segCount: segs.length, firstSeg };
+});
+console.log('=== HORIZONTAL SCROLL ===');
+console.log('clientWidth:', scrollInfo.clientWidth, 'scrollWidth:', scrollInfo.scrollWidth, 'hasHScroll:', scrollInfo.hasHScroll);
+if (scrollInfo.offenders.length) {
+  console.log('offending elements (right edge beyond viewport):');
+  scrollInfo.offenders.forEach((o) => console.log('  ', o.tag, '.' + o.cls, 'right=' + o.right, 'w=' + o.width));
+} else {
+  console.log('(no overflowing element — OK)');
+}
+console.log('container widths:', JSON.stringify(scrollInfo.widths));
+console.log('maxRight:', JSON.stringify(scrollInfo.maxRight));
+console.log('maxWidth:', JSON.stringify(scrollInfo.maxWidth));
+console.log('segCount:', scrollInfo.segCount, 'firstSeg:', JSON.stringify(scrollInfo.firstSeg));
+
 await browser.close();
 console.log('DONE');
