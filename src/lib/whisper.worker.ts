@@ -93,6 +93,7 @@ self.onmessage = async (e: MessageEvent) => {
 
     self.postMessage({ type: 'result', text, segments });
   } catch (err) {
-    self.postMessage({ type: 'error', message: (err as Error)?.message || String(err) });
+    const detail = (err as Error)?.message || String(err);
+    self.postMessage({ type: 'error', message: detail });
   }
 };
